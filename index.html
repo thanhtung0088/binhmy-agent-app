@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <style>
   :root{
@@ -189,11 +190,66 @@
 
   ::-webkit-scrollbar{width:8px;height:8px;}
   ::-webkit-scrollbar-thumb{background:#C9D0C6;border-radius:8px;}
+
+  /* ===== Login screen ===== */
+  .login-screen{
+    position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;
+    background:radial-gradient(circle at 20% 15%,#1D453D,var(--sidebar) 55%);padding:20px;
+  }
+  .login-card{
+    width:100%;max-width:380px;background:var(--panel);border-radius:14px;padding:32px 30px 28px;
+    box-shadow:0 20px 60px rgba(0,0,0,.35);
+  }
+  .login-card .emblem{
+    width:46px;height:46px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#E8C27A,var(--brass) 70%);
+    display:flex;align-items:center;justify-content:center;color:#1D2A16;font-weight:800;font-size:17px;margin-bottom:14px;
+  }
+  .login-card h1{font-size:17px;font-weight:700;color:var(--ink);}
+  .login-card p.sub{font-size:12px;color:#5C6960;margin-top:4px;margin-bottom:22px;}
+  .login-card .field{margin-bottom:14px;}
+  .login-card input[type=email],.login-card input[type=password]{width:100%;padding:10px 12px;font-size:13px;}
+  .login-card .btn{width:100%;justify-content:center;padding:11px;font-size:13px;margin-top:4px;}
+  .login-error{
+    font-size:12px;color:var(--danger);min-height:16px;margin:-4px 0 10px;line-height:1.5;
+  }
+  .login-foot{font-size:10.5px;color:#9AA69D;text-align:center;margin-top:18px;line-height:1.6;}
+  .login-card[data-disabled="true"] input,.login-card[data-disabled="true"] button{opacity:.5;pointer-events:none;}
+  .user-chip{
+    display:flex;align-items:center;justify-content:space-between;gap:8px;
+    padding:8px 10px;background:rgba(255,255,255,.05);border-radius:8px;margin-bottom:10px;font-size:11.5px;
+  }
+  .user-chip .email{color:#EAF3EF;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .user-chip button{background:transparent;border:1px solid rgba(255,255,255,.25);color:var(--sidebar-text);
+    border-radius:6px;padding:4px 8px;font-size:10.5px;}
+  .user-chip button:hover{color:#fff;border-color:#fff;}
 </style>
 </head>
 <body>
 
-<div class="shell">
+<!-- ===== LOGIN SCREEN ===== -->
+<div class="login-screen" id="loginScreen">
+  <div class="login-card" id="loginCard">
+    <div class="emblem">☆</div>
+    <h1>Trạm Điều Hành Số</h1>
+    <p class="sub">UBND Xã Bình Mỹ — vui lòng đăng nhập để tiếp tục</p>
+    <div class="field">
+      <label style="font-size:11px;font-weight:600;color:#5C6960;">Email cán bộ</label>
+      <input type="email" id="loginEmail" placeholder="ten.canbo@binhmy.gov.vn" style="width:100%;margin-top:5px;">
+    </div>
+    <div class="field">
+      <label style="font-size:11px;font-weight:600;color:#5C6960;">Mật khẩu</label>
+      <input type="password" id="loginPass" placeholder="••••••••" style="width:100%;margin-top:5px;" onkeydown="if(event.key==='Enter') doLogin();">
+    </div>
+    <div class="login-error" id="loginError"></div>
+    <button class="btn btn-brass" id="loginBtn" onclick="doLogin()">Đăng nhập</button>
+    <div class="login-foot" id="loginFoot">
+      Chỉ cán bộ được cấp tài khoản mới truy cập được dữ liệu thật.<br>
+      Liên hệ quản trị hệ thống nếu chưa có tài khoản.
+    </div>
+  </div>
+</div>
+
+<div class="shell" id="appShell" style="display:none;">
   <!-- ===== SIDEBAR ===== -->
   <aside class="sidebar">
     <div class="brand">
@@ -210,6 +266,10 @@
       <div class="nav-item" data-view="caidat"><span class="dot"></span><span class="nav-icon">◆</span> Cài đặt Agent</div>
     </nav>
     <div class="sidebar-foot">
+      <div class="user-chip">
+        <span class="email" id="userEmail">—</span>
+        <button onclick="doLogout()">Đăng xuất</button>
+      </div>
       Thiết kế & Lập trình: Nguyễn Thanh Tùng<br>
       Ứng dụng nội bộ · không công khai
     </div>
@@ -439,6 +499,10 @@
             <label>Trạng thái kết nối Firestore</label>
             <div id="fsStatus" class="tag tag-mute">Đang kiểm tra...</div>
           </div>
+          <div class="field" style="margin-bottom:10px;">
+            <label>Trạng thái đăng nhập (Firebase Authentication)</label>
+            <div id="authStatus" class="tag tag-mute">Đang kiểm tra...</div>
+          </div>
           <p style="font-size:11.5px;color:#8A968D;margin-top:14px;line-height:1.6;">
             Xem hướng dẫn cấu hình chi tiết trong file <code>README-DEPLOY.md</code> đi kèm.
           </p>
@@ -501,12 +565,16 @@ const firebaseConfig = {
 };
 
 let db = null;
+let auth = null;
 let firestoreReady = false;
+let firebaseReady = false;
 try{
   if(firebaseConfig.apiKey !== "ĐIỀN_API_KEY"){
     firebase.initializeApp(firebaseConfig);
     db = firebase.firestore();
+    auth = firebase.auth();
     firestoreReady = true;
+    firebaseReady = true;
   }
 }catch(e){ console.warn("Firestore chưa cấu hình:", e); }
 
@@ -868,12 +936,52 @@ async function checkApiStatus(){
   }catch(e){
     el.className='tag tag-warn'; el.textContent='Chưa triển khai /api/gemini (đang chạy chế độ nháp cục bộ)';
   }
+  const authEl = document.getElementById('authStatus');
+  if(firebaseReady){ authEl.className = 'tag tag-ok'; authEl.textContent = 'Đã bật — yêu cầu đăng nhập Firebase Authentication'; }
+  else { authEl.className = 'tag tag-warn'; authEl.textContent = 'Chưa cấu hình — hiện đang khoá truy cập toàn bộ app'; }
 }
 
-// ---------- 15) KHỞI CHẠY ----------
-loadAll();
-checkApiStatus();
-renderNhanSu(); renderCongViec(); renderKpi(); renderPhanTich();
+// ---------- 15) LỚP ĐĂNG NHẬP (Firebase Authentication) ----------
+function showLogin(errMsg){
+  document.getElementById('appShell').style.display = 'none';
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('loginError').textContent = errMsg || '';
+}
+function showApp(user){
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('appShell').style.display = 'flex';
+  document.getElementById('userEmail').textContent = user.email;
+  loadAll();
+  checkApiStatus();
+  renderNhanSu(); renderCongViec(); renderKpi(); renderPhanTich();
+}
+function doLogin(){
+  if(!firebaseReady) return;
+  const email = document.getElementById('loginEmail').value.trim();
+  const pass = document.getElementById('loginPass').value;
+  if(!email || !pass){ document.getElementById('loginError').textContent = 'Nhập đủ email và mật khẩu.'; return; }
+  document.getElementById('loginError').textContent = 'Đang đăng nhập...';
+  auth.signInWithEmailAndPassword(email, pass).catch(()=>{
+    document.getElementById('loginError').textContent = 'Sai email hoặc mật khẩu, hoặc tài khoản chưa được cấp.';
+  });
+}
+function doLogout(){ if(auth) auth.signOut(); }
+
+if(!firebaseReady){
+  // Chưa cấu hình Firebase Authentication trong firebaseConfig phía trên —
+  // khoá truy cập thay vì lộ dữ liệu, để buộc phải cấu hình trước khi dùng dữ liệu thật.
+  document.getElementById('loginCard').dataset.disabled = 'true';
+  document.getElementById('loginFoot').textContent =
+    'Hệ thống đăng nhập chưa được cấu hình (firebaseConfig trong index.html). ' +
+    'Liên hệ quản trị hệ thống để thiết lập trước khi sử dụng dữ liệu cán bộ thật.';
+  showLogin();
+} else {
+  auth.onAuthStateChanged(user=>{
+    if(user) showApp(user);
+    else showLogin();
+  });
+}
+
 </script>
 </body>
 </html>
