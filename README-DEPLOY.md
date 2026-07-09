@@ -1,7 +1,7 @@
 # Hướng dẫn triển khai — Trạm Điều Hành Số UBND Xã Bình Mỹ
 
 Đây là ứng dụng **nội bộ, riêng biệt** với Cổng thông tin điện tử công khai
-(ban-nhan-dan-ap8_CLAUDE2.html). App này dùng để vận hành 4 nhóm Agent:
+. App này dùng để vận hành 4 nhóm Agent:
 Nhân sự, Điều phối công việc, Đánh giá KPI, Phân tích & dự báo.
 
 ## Cấu trúc file
@@ -52,6 +52,46 @@ nên không đụng vào dữ liệu của Cổng thông tin công khai).
 Nếu chưa điền, app vẫn chạy bình thường ở **chế độ demo** với dữ liệu mẫu có sẵn
 (lưu tạm trong bộ nhớ trình duyệt, mất khi tải lại trang).
 
+## Bước 4 — Bật lớp đăng nhập (bắt buộc trước khi dùng dữ liệu cán bộ thật)
+
+App **đã có sẵn màn hình đăng nhập** (Firebase Authentication, kiểu email/mật khẩu).
+Khi `firebaseConfig` ở Bước 3 chưa được điền, app sẽ **tự động khoá toàn bộ
+truy cập** và chỉ hiện thông báo yêu cầu cấu hình — đây là điều nên xảy ra,
+để không ai lỡ đưa dữ liệu cán bộ thật vào lúc hệ thống chưa an toàn.
+
+Sau khi đã điền `firebaseConfig` thật ở Bước 3, làm tiếp theo thứ tự:
+
+1. **Bật phương thức đăng nhập**: vào [Firebase Console](https://console.firebase.google.com)
+   → chọn đúng project → **Authentication → Sign-in method** → bật
+   **Email/Password**.
+2. **Tạo tài khoản cho từng cán bộ**: vẫn trong **Authentication → Users**,
+   bấm **Add user**, nhập email + mật khẩu tạm cho từng người sẽ dùng app
+   (Bí thư, Phó Bí thư, cán bộ phụ trách...). App **không có màn hình tự
+   đăng ký** — chỉ quản trị viên tạo tài khoản mới có người dùng được, đây
+   là chủ đích để kiểm soát ai được truy cập dữ liệu nội bộ.
+3. **(Khuyến nghị) Siết quyền Firestore theo tài khoản đã đăng nhập**: vào
+   **Firestore Database → Rules**, đảm bảo có điều kiện yêu cầu đã đăng nhập,
+   ví dụ:
+   ```
+   rules_version = '2';
+   service cloud.firestore {
+     match /databases/{database}/documents {
+       match /binhmy_agent/{docId} {
+         allow read, write: if request.auth != null;
+       }
+     }
+   }
+   ```
+   Nếu không cấu hình rule này, ai biết đường dẫn Firestore vẫn có thể đọc/ghi
+   dữ liệu trực tiếp dù đã có màn hình đăng nhập trên giao diện.
+4. Gửi email + mật khẩu tạm cho từng cán bộ, nhắc đổi mật khẩu lần đầu đăng nhập
+   (Firebase Console cho phép đặt lại mật khẩu thủ công nếu cán bộ quên).
+
+Sau khi hoàn tất, mở lại app: người dùng phải nhập đúng email/mật khẩu đã cấp
+mới vào được giao diện; trang **Cài đặt Agent** sẽ hiển thị trạng thái
+**"Đã bật — yêu cầu đăng nhập Firebase Authentication"**.
+
+
 ## Cách hoạt động của 4 Agent trong app
 
 | Agent | Dữ liệu vào | Hành động |
@@ -68,6 +108,9 @@ bảng điều khiển agent tương ứng.
 ## Lưu ý bảo mật
 - Không đưa dữ liệu Mật/nhạy cảm vào Ghi chú hoặc bất kỳ ô nhập liệu nào, vì
   nội dung sẽ được gửi qua Gemini API để xử lý.
-- App này không có màn hình đăng nhập vì mặc định dùng nội bộ (không public
-  URL cho dân). Nếu deploy công khai, nên thêm lớp xác thực trước khi dùng
-  dữ liệu cán bộ thật.
+- App **đã có lớp đăng nhập** (xem Bước 4) — bắt buộc cấu hình Firebase
+  Authentication và tạo tài khoản cho từng cán bộ trước khi đưa dữ liệu
+  cán bộ/công việc thật vào, vì trước đây app không có xác thực và ai có
+  đường link cũng xem được.
+- Không chia sẻ đường link app kèm tài khoản demo cho người ngoài; đây vẫn là
+  công cụ nội bộ, không nên public rộng rãi dù đã có đăng nhập.
