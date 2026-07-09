@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trạm Điều Hành Số · UBND Xã Bình Mỹ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+  :root{
+    --ink:#16211D;
+    --paper:#F4F6F3;
+    --panel:#FFFFFF;
+    --sidebar:#0F2E28;
+    --sidebar-line:#1D453D;
+    --sidebar-text:#B9CFC7;
+    --brass:#D4A24E;
+    --brass-dim:#8C6B2E;
+    --teal:#2F6F63;
+    --teal-dark:#1F4C43;
+    --danger:#C1440E;
+    --ok:#4C7A51;
+    --line:#E1E4DD;
+    --mono:'JetBrains Mono',monospace;
+    --disp:'Be Vietnam Pro',sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{
+    font-family:var(--disp);
+    background:var(--paper);
+    color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:inherit;text-decoration:none;}
+  button{font-family:inherit;cursor:pointer;}
+
+  /* ===== Layout shell ===== */
+  .shell{display:flex;min-height:100vh;}
+
+  /* ===== Sidebar ===== */
+  .sidebar{
+    width:250px;flex-shrink:0;background:var(--sidebar);color:var(--sidebar-text);
+    display:flex;flex-direction:column;position:sticky;top:0;height:100vh;
+  }
+  .brand{padding:24px 20px 18px;border-bottom:1px solid var(--sidebar-line);}
+  .brand .emblem{
+    width:40px;height:40px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#E8C27A,var(--brass) 70%);
+    display:flex;align-items:center;justify-content:center;color:#1D2A16;font-weight:800;font-size:15px;margin-bottom:10px;
+  }
+  .brand h1{font-size:15px;font-weight:700;color:#fff;line-height:1.3;}
+  .brand p{font-size:11px;color:var(--sidebar-text);margin-top:4px;letter-spacing:.03em;text-transform:uppercase;}
+
+  nav.nav{padding:14px 10px;flex:1;}
+  .nav-item{
+    display:flex;align-items:center;gap:11px;padding:11px 12px;border-radius:8px;
+    font-size:13.5px;font-weight:500;color:var(--sidebar-text);margin-bottom:2px;
+    border:1px solid transparent;transition:.15s;
+  }
+  .nav-item:hover{background:rgba(255,255,255,.05);color:#fff;}
+  .nav-item.active{background:var(--sidebar-line);color:#fff;border-color:rgba(212,162,78,.35);}
+  .nav-item .dot{width:6px;height:6px;border-radius:50%;background:var(--brass);opacity:0;flex-shrink:0;}
+  .nav-item.active .dot{opacity:1;}
+  .nav-icon{width:18px;text-align:center;font-size:14px;flex-shrink:0;}
+
+  .sidebar-foot{padding:14px 20px 18px;border-top:1px solid var(--sidebar-line);font-size:10.5px;color:#6F8A81;line-height:1.6;}
+
+  /* ===== Main ===== */
+  .main{flex:1;min-width:0;display:flex;flex-direction:column;}
+
+  /* Console ticker — nhật ký vận hành agent */
+  .console{
+    background:#0B1512;color:#7FE0A8;font-family:var(--mono);font-size:11.5px;
+    padding:8px 22px;border-bottom:1px solid #1D2A16;display:flex;align-items:center;gap:10px;
+    overflow:hidden;white-space:nowrap;
+  }
+  .console .rec{width:7px;height:7px;border-radius:50%;background:#FF6B57;flex-shrink:0;animation:pulse 1.4s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.25;}}
+  .console-track{display:inline-block;animation:scroll-left 32s linear infinite;}
+  @keyframes scroll-left{0%{transform:translateX(0);}100%{transform:translateX(-50%);}}
+
+  .topbar{
+    padding:22px 32px 18px;display:flex;align-items:center;justify-content:space-between;
+    border-bottom:1px solid var(--line);background:var(--panel);
+  }
+  .topbar h2{font-size:22px;font-weight:800;letter-spacing:-.01em;}
+  .topbar .sub{font-size:12.5px;color:#5C6960;margin-top:3px;}
+  .topbar .date{font-family:var(--mono);font-size:12px;color:#5C6960;text-align:right;}
+
+  .content{padding:28px 32px 60px;flex:1;}
+  .view{display:none;}
+  .view.active{display:block;animation:fade .25s ease;}
+  @keyframes fade{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:translateY(0);}}
+
+  /* ===== Cards / grid ===== */
+  .grid{display:grid;gap:16px;}
+  .grid-4{grid-template-columns:repeat(4,1fr);}
+  .grid-2{grid-template-columns:1.3fr .7fr;}
+  @media(max-width:1100px){.grid-4{grid-template-columns:repeat(2,1fr);} .grid-2{grid-template-columns:1fr;}}
+
+  .card{
+    background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px;
+  }
+  .stat-card .label{font-size:11.5px;color:#5C6960;text-transform:uppercase;letter-spacing:.05em;font-weight:600;}
+  .stat-card .value{font-family:var(--mono);font-size:28px;font-weight:600;margin:8px 0 4px;}
+  .stat-card .delta{font-size:11.5px;font-weight:600;}
+  .delta.up{color:var(--ok);} .delta.down{color:var(--danger);}
+
+  .card-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+  .card-head h3{font-size:14.5px;font-weight:700;}
+  .card-head .hint{font-size:11.5px;color:#8A968D;}
+
+  /* ===== Agent panel (signature element) ===== */
+  .agent-panel{
+    background:linear-gradient(160deg,var(--teal-dark),var(--teal));color:#EAF3EF;border-radius:12px;
+    padding:20px 22px;position:relative;overflow:hidden;
+  }
+  .agent-panel::after{
+    content:"";position:absolute;right:-40px;top:-40px;width:160px;height:160px;border-radius:50%;
+    background:radial-gradient(circle,rgba(212,162,78,.25),transparent 70%);
+  }
+  .agent-panel .ap-head{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+  .heartbeat{width:10px;height:10px;border-radius:50%;background:#7FE0A8;box-shadow:0 0 0 0 rgba(127,224,168,.6);animation:hb 1.8s infinite;}
+  @keyframes hb{0%{box-shadow:0 0 0 0 rgba(127,224,168,.5);}70%{box-shadow:0 0 0 8px rgba(127,224,168,0);}100%{box-shadow:0 0 0 0 rgba(127,224,168,0);}}
+  .agent-panel h3{font-size:14.5px;font-weight:700;}
+  .agent-panel .meta{font-family:var(--mono);font-size:11px;color:#BFE3D6;margin-top:2px;}
+  .agent-log{
+    background:rgba(0,0,0,.2);border-radius:8px;padding:12px 14px;font-family:var(--mono);font-size:11.5px;
+    line-height:1.8;max-height:110px;overflow-y:auto;margin:12px 0 14px;
+  }
+  .agent-log .l-ok{color:#8FE3B2;} .agent-log .l-warn{color:#F2C879;} .agent-log .l-info{color:#BFE3D6;}
+  .btn{
+    display:inline-flex;align-items:center;gap:7px;padding:9px 16px;border-radius:8px;font-size:12.5px;font-weight:600;
+    border:1px solid transparent;
+  }
+  .btn-brass{background:var(--brass);color:#25190A;}
+  .btn-brass:hover{background:#C4933F;}
+  .btn-ghost{background:rgba(255,255,255,.08);color:#EAF3EF;border-color:rgba(255,255,255,.25);}
+  .btn-ghost:hover{background:rgba(255,255,255,.16);}
+  .btn-outline{background:transparent;border-color:var(--line);color:var(--ink);}
+  .btn-outline:hover{border-color:var(--teal);color:var(--teal);}
+  .btn-sm{padding:6px 11px;font-size:11.5px;}
+  .btn[disabled]{opacity:.55;cursor:not-allowed;}
+
+  /* ===== Tables ===== */
+  table{width:100%;border-collapse:collapse;font-size:12.8px;}
+  th{
+    text-align:left;font-size:10.8px;text-transform:uppercase;letter-spacing:.04em;color:#8A968D;
+    padding:8px 10px;border-bottom:1px solid var(--line);font-weight:600;
+  }
+  td{padding:10px 10px;border-bottom:1px solid var(--line);vertical-align:middle;}
+  tr:last-child td{border-bottom:none;}
+  .tag{
+    display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:600;
+  }
+  .tag-ok{background:#E7F1E4;color:var(--ok);}
+  .tag-warn{background:#FBF0DC;color:#9A6E1F;}
+  .tag-danger{background:#F8E4DA;color:var(--danger);}
+  .tag-mute{background:#EEF0EC;color:#6D786F;}
+  .bar-bg{width:100%;height:6px;background:#EEF0EC;border-radius:6px;overflow:hidden;}
+  .bar-fill{height:100%;background:var(--teal);border-radius:6px;}
+  .bar-fill.warn{background:#D9A441;} .bar-fill.danger{background:var(--danger);}
+
+  .toolbar{display:flex;gap:10px;align-items:center;margin-bottom:16px;flex-wrap:wrap;}
+  input[type=text],input[type=date],select,textarea{
+    font-family:inherit;font-size:12.8px;padding:8px 11px;border:1px solid var(--line);border-radius:7px;background:#fff;color:var(--ink);
+  }
+  textarea{width:100%;resize:vertical;min-height:80px;}
+  .field{display:flex;flex-direction:column;gap:5px;}
+  .field label{font-size:11px;font-weight:600;color:#5C6960;}
+  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;}
+  .modal-bg{
+    position:fixed;inset:0;background:rgba(15,25,20,.45);display:none;align-items:center;justify-content:center;z-index:50;padding:20px;
+  }
+  .modal-bg.show{display:flex;}
+  .modal{background:#fff;border-radius:14px;padding:22px 24px;width:100%;max-width:480px;max-height:88vh;overflow-y:auto;}
+  .modal h3{font-size:15.5px;font-weight:700;margin-bottom:14px;}
+  .modal-foot{display:flex;justify-content:flex-end;gap:8px;margin-top:16px;}
+
+  .ai-output{
+    background:#F7F3E8;border:1px solid #EAD9AE;border-radius:10px;padding:14px 16px;font-size:12.8px;line-height:1.65;
+    white-space:pre-wrap;margin-top:12px;
+  }
+  .empty{padding:30px 10px;text-align:center;color:#8A968D;font-size:12.8px;}
+  .foot-credit{
+    text-align:center;font-size:11px;color:#8A968D;padding:20px 0 40px;
+  }
+
+  ::-webkit-scrollbar{width:8px;height:8px;}
+  ::-webkit-scrollbar-thumb{background:#C9D0C6;border-radius:8px;}
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <!-- ===== SIDEBAR ===== -->
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="emblem">☆</div>
+      <h1>Trạm Điều Hành Số</h1>
+      <p>UBND Xã Bình Mỹ</p>
+    </div>
+    <nav class="nav" id="navList">
+      <div class="nav-item active" data-view="tongquan"><span class="dot"></span><span class="nav-icon">◆</span> Tổng quan</div>
+      <div class="nav-item" data-view="nhansu"><span class="dot"></span><span class="nav-icon">◆</span> Quản lý nhân sự</div>
+      <div class="nav-item" data-view="congviec"><span class="dot"></span><span class="nav-icon">◆</span> Điều phối công việc</div>
+      <div class="nav-item" data-view="kpi"><span class="dot"></span><span class="nav-icon">◆</span> Đánh giá KPI</div>
+      <div class="nav-item" data-view="phantich"><span class="dot"></span><span class="nav-icon">◆</span> Phân tích & dự báo</div>
+      <div class="nav-item" data-view="caidat"><span class="dot"></span><span class="nav-icon">◆</span> Cài đặt Agent</div>
+    </nav>
+    <div class="sidebar-foot">
+      Thiết kế & Lập trình: Nguyễn Thanh Tùng<br>
+      Ứng dụng nội bộ · không công khai
+    </div>
+  </aside>
+
+  <!-- ===== MAIN ===== -->
+  <div class="main">
+    <div class="console">
+      <span class="rec"></span>
+      <div class="console-track" id="consoleTrack">Đang tải nhật ký vận hành...</div>
+    </div>
+
+    <div class="topbar">
+      <div>
+        <h2 id="viewTitle">Tổng quan</h2>
+        <div class="sub" id="viewSub">Tình trạng vận hành và các agent đang hoạt động</div>
+      </div>
+      <div class="date" id="clock">--</div>
+    </div>
+
+    <div class="content">
+
+      <!-- ================= TỔNG QUAN ================= -->
+      <section class="view active" id="view-tongquan">
+        <div class="grid grid-4" style="margin-bottom:16px;">
+          <div class="card stat-card">
+            <div class="label">Cán bộ đang quản lý</div>
+            <div class="value" id="stNhanSu">--</div>
+            <div class="delta up">Đủ biên chế theo phân công</div>
+          </div>
+          <div class="card stat-card">
+            <div class="label">Việc đang xử lý</div>
+            <div class="value" id="stCongViec">--</div>
+            <div class="delta" id="stCongViecDelta">--</div>
+          </div>
+          <div class="card stat-card">
+            <div class="label">Tỉ lệ hoàn thành KPI</div>
+            <div class="value" id="stKpi">--</div>
+            <div class="delta up" id="stKpiDelta">--</div>
+          </div>
+          <div class="card stat-card">
+            <div class="label">Cảnh báo cần xử lý</div>
+            <div class="value" id="stCanhBao">--</div>
+            <div class="delta down">Do Agent phát hiện</div>
+          </div>
+        </div>
+
+        <div class="grid grid-2">
+          <div class="card">
+            <div class="card-head">
+              <h3>Việc trễ hạn / sắp đến hạn</h3>
+              <span class="hint">Theo dõi bởi Agent Điều phối</span>
+            </div>
+            <table><thead><tr><th>Công việc</th><th>Phụ trách</th><th>Hạn</th><th>Trạng thái</th></tr></thead>
+              <tbody id="tblTongQuanViec"></tbody>
+            </table>
+          </div>
+
+          <div class="agent-panel">
+            <div class="ap-head">
+              <span class="heartbeat"></span>
+              <div>
+                <h3>Bảng điều khiển Agent</h3>
+                <div class="meta">4 agent · sẵn sàng</div>
+              </div>
+            </div>
+            <div class="agent-log" id="tqAgentLog">
+              <div class="l-info">› Hệ thống khởi tạo lúc <span id="bootTime"></span></div>
+            </div>
+            <button class="btn btn-brass" onclick="runAllAgents()">▶ Chạy toàn bộ Agent</button>
+            <button class="btn btn-ghost" onclick="goto('caidat')">Cấu hình</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= NHÂN SỰ ================= -->
+      <section class="view" id="view-nhansu">
+        <div class="grid grid-2">
+          <div class="card">
+            <div class="toolbar">
+              <input type="text" id="nsSearch" placeholder="Tìm theo tên, chức vụ..." style="flex:1;min-width:180px;" oninput="renderNhanSu()">
+              <button class="btn btn-outline btn-sm" onclick="openNhanSuModal()">+ Thêm cán bộ</button>
+            </div>
+            <table>
+              <thead><tr><th>Họ tên</th><th>Chức vụ</th><th>Chấm công tháng</th><th>Nghỉ phép</th><th>Hồ sơ</th><th></th></tr></thead>
+              <tbody id="tblNhanSu"></tbody>
+            </table>
+          </div>
+
+          <div class="agent-panel">
+            <div class="ap-head">
+              <span class="heartbeat"></span>
+              <div>
+                <h3>Agent Nhân sự</h3>
+                <div class="meta" id="agentNhanSuMeta">chưa chạy lần nào</div>
+              </div>
+            </div>
+            <p style="font-size:12px;color:#D6E9E1;line-height:1.6;">
+              Quét chấm công, phép, hồ sơ còn thiếu → phát hiện bất thường → soạn nhắc nhở đúng thể thức hành chính.
+            </p>
+            <div class="agent-log" id="logNhanSu"></div>
+            <button class="btn btn-brass" onclick="runAgent('nhansu')">▶ Chạy Agent Nhân sự</button>
+            <div class="ai-output" id="outNhanSu" style="display:none;"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= CÔNG VIỆC ================= -->
+      <section class="view" id="view-congviec">
+        <div class="grid grid-2">
+          <div class="card">
+            <div class="toolbar">
+              <select id="cvFilter" onchange="renderCongViec()">
+                <option value="all">Tất cả trạng thái</option>
+                <option value="dung">Đúng tiến độ</option>
+                <option value="sap">Sắp đến hạn</option>
+                <option value="tre">Trễ hạn</option>
+              </select>
+              <button class="btn btn-outline btn-sm" onclick="openCongViecModal()">+ Giao việc mới</button>
+            </div>
+            <table>
+              <thead><tr><th>Công việc</th><th>Đơn vị/Phụ trách</th><th>Hạn</th><th>Tiến độ</th><th>Trạng thái</th></tr></thead>
+              <tbody id="tblCongViec"></tbody>
+            </table>
+          </div>
+
+          <div class="agent-panel">
+            <div class="ap-head">
+              <span class="heartbeat"></span>
+              <div>
+                <h3>Agent Điều phối</h3>
+                <div class="meta" id="agentCongViecMeta">chưa chạy lần nào</div>
+              </div>
+            </div>
+            <p style="font-size:12px;color:#D6E9E1;line-height:1.6;">
+              Đọc tiến độ các đầu việc → so sánh kỳ trước → tự tổng hợp báo cáo theo mẫu công văn hành chính.
+            </p>
+            <div class="agent-log" id="logCongViec"></div>
+            <button class="btn btn-brass" onclick="runAgent('congviec')">▶ Tổng hợp báo cáo tuần</button>
+            <div class="ai-output" id="outCongViec" style="display:none;"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= KPI ================= -->
+      <section class="view" id="view-kpi">
+        <div class="grid grid-2">
+          <div class="card">
+            <div class="card-head"><h3>Bảng đánh giá KPI theo cán bộ / bộ phận</h3><span class="hint">Cập nhật tự động từ Điều phối công việc</span></div>
+            <table>
+              <thead><tr><th>Cán bộ / Bộ phận</th><th>Số việc được giao</th><th>Hoàn thành đúng hạn</th><th>Tỉ lệ</th><th>Xếp loại</th></tr></thead>
+              <tbody id="tblKpi"></tbody>
+            </table>
+          </div>
+
+          <div class="agent-panel">
+            <div class="ap-head">
+              <span class="heartbeat"></span>
+              <div>
+                <h3>Agent Đánh giá KPI</h3>
+                <div class="meta" id="agentKpiMeta">chưa chạy lần nào</div>
+              </div>
+            </div>
+            <p style="font-size:12px;color:#D6E9E1;line-height:1.6;">
+              Đối chiếu deadline với tiến độ thực tế → tính tỉ lệ hoàn thành → cảnh báo sớm nguy cơ không đạt KPI kỳ này.
+            </p>
+            <div class="agent-log" id="logKpi"></div>
+            <button class="btn btn-brass" onclick="runAgent('kpi')">▶ Chạy đánh giá KPI</button>
+            <div class="ai-output" id="outKpi" style="display:none;"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= PHÂN TÍCH & DỰ BÁO ================= -->
+      <section class="view" id="view-phantich">
+        <div class="grid grid-2">
+          <div class="card">
+            <div class="card-head"><h3>Dữ liệu theo dõi theo kỳ</h3><span class="hint">Nhập số liệu để Agent phân tích xu hướng</span></div>
+            <div class="toolbar">
+              <div class="field"><label>Kỳ báo cáo</label><input type="text" id="ptKy" placeholder="VD: Quý 2/2026"></div>
+              <div class="field"><label>Dân số địa bàn</label><input type="text" id="ptDanSo" placeholder="VD: 18.500"></div>
+              <div class="field"><label>Hồ sơ tiếp nhận</label><input type="text" id="ptHoSo" placeholder="VD: 1.240"></div>
+            </div>
+            <div class="field" style="margin-bottom:10px;">
+              <label>Ghi chú tình hình thực tế địa bàn (agent sẽ dùng để phân tích)</label>
+              <textarea id="ptGhiChu" placeholder="VD: Sau sáp nhập, địa bàn tăng thêm 2 ấp cũ, hồ sơ đất đai tăng mạnh..."></textarea>
+            </div>
+            <button class="btn btn-outline btn-sm" onclick="savePhanTichRecord()">Lưu số liệu kỳ này</button>
+            <table style="margin-top:16px;">
+              <thead><tr><th>Kỳ</th><th>Dân số</th><th>Hồ sơ tiếp nhận</th></tr></thead>
+              <tbody id="tblPhanTich"></tbody>
+            </table>
+          </div>
+
+          <div class="agent-panel">
+            <div class="ap-head">
+              <span class="heartbeat"></span>
+              <div>
+                <h3>Agent Phân tích & Dự báo</h3>
+                <div class="meta" id="agentPhanTichMeta">chưa chạy lần nào</div>
+              </div>
+            </div>
+            <p style="font-size:12px;color:#D6E9E1;line-height:1.6;">
+              Phân tích xu hướng dữ liệu các kỳ đã lưu, đưa ra nhận định và khuyến nghị cho lãnh đạo xã.
+            </p>
+            <div class="agent-log" id="logPhanTich"></div>
+            <button class="btn btn-brass" onclick="runAgent('phantich')">▶ Phân tích xu hướng</button>
+            <div class="ai-output" id="outPhanTich" style="display:none;"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ================= CÀI ĐẶT ================= -->
+      <section class="view" id="view-caidat">
+        <div class="card" style="max-width:640px;">
+          <div class="card-head"><h3>Kết nối hệ thống</h3></div>
+          <p style="font-size:12.5px;color:#5C6960;line-height:1.7;margin-bottom:14px;">
+            App gọi AI thông qua hàm serverless <code>/api/gemini</code> trên Vercel (không lộ API key ra trình duyệt),
+            và lưu dữ liệu qua Firebase Firestore. Điền thông tin bên dưới nếu cần đổi project Firestore đang dùng
+            (mặc định app dùng chung project với Cổng thông tin UBND Xã Bình Mỹ).
+          </p>
+          <div class="field" style="margin-bottom:10px;">
+            <label>Trạng thái kết nối API AI</label>
+            <div id="apiStatus" class="tag tag-mute">Đang kiểm tra...</div>
+          </div>
+          <div class="field" style="margin-bottom:10px;">
+            <label>Trạng thái kết nối Firestore</label>
+            <div id="fsStatus" class="tag tag-mute">Đang kiểm tra...</div>
+          </div>
+          <p style="font-size:11.5px;color:#8A968D;margin-top:14px;line-height:1.6;">
+            Xem hướng dẫn cấu hình chi tiết trong file <code>README-DEPLOY.md</code> đi kèm.
+          </p>
+        </div>
+      </section>
+
+    </div>
+
+    <div class="foot-credit">Thiết kế & Lập trình: Nguyễn Thanh Tùng — Trạm Điều Hành Số UBND Xã Bình Mỹ</div>
+  </div>
+</div>
+
+<!-- ===== MODAL: thêm cán bộ ===== -->
+<div class="modal-bg" id="modalNhanSu">
+  <div class="modal">
+    <h3>Thêm cán bộ</h3>
+    <div class="form-grid">
+      <div class="field"><label>Họ tên</label><input type="text" id="fNsTen"></div>
+      <div class="field"><label>Chức vụ</label><input type="text" id="fNsChucVu"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline btn-sm" onclick="closeModal('modalNhanSu')">Huỷ</button>
+      <button class="btn btn-brass btn-sm" onclick="saveNhanSu()">Lưu</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MODAL: giao việc ===== -->
+<div class="modal-bg" id="modalCongViec">
+  <div class="modal">
+    <h3>Giao việc mới</h3>
+    <div class="field" style="margin-bottom:10px;"><label>Tên công việc</label><input type="text" id="fCvTen" style="width:100%;"></div>
+    <div class="form-grid">
+      <div class="field"><label>Phụ trách</label><input type="text" id="fCvPhuTrach"></div>
+      <div class="field"><label>Hạn hoàn thành</label><input type="date" id="fCvHan"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-outline btn-sm" onclick="closeModal('modalCongViec')">Huỷ</button>
+      <button class="btn btn-brass btn-sm" onclick="saveCongViec()">Giao việc</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =========================================================================
+   TRẠM ĐIỀU HÀNH SỐ — UBND XÃ BÌNH MỸ
+   Kiến trúc: dữ liệu lưu Firestore (đồng bộ thực), AI gọi qua /api/gemini
+   (Vercel serverless function) để không lộ API key.
+   Nếu chưa cấu hình Firestore/API, app tự chạy ở "chế độ demo" bằng dữ liệu mẫu.
+   ========================================================================= */
+
+// ---------- 1) CẤU HÌNH FIREBASE (điền thông tin project của Thầy) ----------
+const firebaseConfig = {
+  apiKey: "ĐIỀN_API_KEY",
+  authDomain: "ĐIỀN.firebaseapp.com",
+  projectId: "ĐIỀN_PROJECT_ID",
+  storageBucket: "ĐIỀN.appspot.com",
+  messagingSenderId: "ĐIỀN",
+  appId: "ĐIỀN"
+};
+
+let db = null;
+let firestoreReady = false;
+try{
+  if(firebaseConfig.apiKey !== "ĐIỀN_API_KEY"){
+    firebase.initializeApp(firebaseConfig);
+    db = firebase.firestore();
+    firestoreReady = true;
+  }
+}catch(e){ console.warn("Firestore chưa cấu hình:", e); }
+
+// ---------- 2) DỮ LIỆU MẪU (dùng khi chưa nối Firestore, hoặc làm dữ liệu khởi tạo) ----------
+let staff = [
+  {id:1, ten:"Phạm Thị Ngọc Dung", chucvu:"Bí thư Đảng uỷ", chamCong:"22/22 công", phep:0, hoso:"Đầy đủ"},
+  {id:2, ten:"Trần Chí Bảo", chucvu:"Phó Bí thư / Chủ tịch UBND", chamCong:"21/22 công", phep:1, hoso:"Đầy đủ"},
+  {id:3, ten:"Nguyễn Thị Thanh Bình", chucvu:"Trưởng ban MTTQ", chamCong:"22/22 công", phep:0, hoso:"Thiếu bằng cấp bổ sung"},
+  {id:4, ten:"Lê Văn Hùng", chucvu:"Cán bộ Địa chính - Xây dựng", chamCong:"20/22 công", phep:2, hoso:"Đầy đủ"},
+  {id:5, ten:"Đỗ Thị Mai", chucvu:"Cán bộ Tư pháp - Hộ tịch", chamCong:"22/22 công", phep:0, hoso:"Đầy đủ"},
+];
+
+let tasks = [
+  {id:1, ten:"Tổng hợp hồ sơ đất đai sau sáp nhập", phutrach:"Lê Văn Hùng", han:"2026-07-15", tienDo:40},
+  {id:2, ten:"Rà soát danh sách hộ nghèo địa bàn mới", phutrach:"Nguyễn Thị Thanh Bình", han:"2026-07-10", tienDo:70},
+  {id:3, ten:"Cấp lại giấy tờ hộ tịch cho dân cư sáp nhập", phutrach:"Đỗ Thị Mai", han:"2026-07-08", tienDo:85},
+  {id:4, ten:"Báo cáo tổng kết quý 2 gửi Phòng Nội vụ", phutrach:"Trần Chí Bảo", han:"2026-07-20", tienDo:15},
+  {id:5, ten:"Kiểm tra an toàn công trình công cộng", phutrach:"Lê Văn Hùng", han:"2026-06-30", tienDo:55},
+];
+
+let phanTichRecords = [
+  {ky:"Quý 1/2026", danso:"16.200", hoso:"980", ghichu:"Trước sáp nhập, địa bàn cũ ổn định."},
+];
+
+let agentRunLog = { nhansu:null, congviec:null, kpi:null, phantich:null };
+
+// ---------- 3) ĐIỀU HƯỚNG ----------
+function goto(view){
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active', n.dataset.view===view));
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById('view-'+view).classList.add('active');
+  const titles = {
+    tongquan:["Tổng quan","Tình trạng vận hành và các agent đang hoạt động"],
+    nhansu:["Quản lý nhân sự","Chấm công, hồ sơ, phép — theo dõi bởi Agent Nhân sự"],
+    congviec:["Điều phối công việc","Giao việc, theo dõi tiến độ toàn xã"],
+    kpi:["Đánh giá KPI","Đối chiếu tiến độ với chỉ tiêu được giao"],
+    phantich:["Phân tích & dự báo","Xu hướng địa bàn dựa trên dữ liệu theo kỳ"],
+    caidat:["Cài đặt Agent","Kết nối API và cơ sở dữ liệu"]
+  };
+  document.getElementById('viewTitle').textContent = titles[view][0];
+  document.getElementById('viewSub').textContent = titles[view][1];
+  if(view==='nhansu') renderNhanSu();
+  if(view==='congviec') renderCongViec();
+  if(view==='kpi') renderKpi();
+  if(view==='phantich') renderPhanTich();
+}
+document.getElementById('navList').addEventListener('click', e=>{
+  const item = e.target.closest('.nav-item');
+  if(item) goto(item.dataset.view);
+});
+
+// ---------- 4) ĐỒNG HỒ + CONSOLE TICKER ----------
+function tickClock(){
+  const d = new Date();
+  document.getElementById('clock').textContent = d.toLocaleDateString('vi-VN') + '  ' + d.toLocaleTimeString('vi-VN');
+}
+setInterval(tickClock, 1000); tickClock();
+document.getElementById('bootTime').textContent = new Date().toLocaleTimeString('vi-VN');
+
+function refreshConsole(){
+  const lines = [
+    `AGENT-NHANSU: theo dõi ${staff.length} cán bộ`,
+    `AGENT-DIEUPHOI: ${tasks.filter(t=>daysLeft(t.han)<0).length} việc trễ hạn`,
+    `AGENT-KPI: tỉ lệ hoàn thành trung bình ${avgKpi()}%`,
+    `AGENT-PHANTICH: ${phanTichRecords.length} kỳ dữ liệu đã ghi nhận`,
+    `HỆ THỐNG: sẵn sàng nhận lệnh`
+  ];
+  const text = lines.map(l=>'● '+l).join('   ▸   ');
+  document.getElementById('consoleTrack').innerHTML = text + '   ▸   ' + text;
+}
+
+// ---------- 5) HÀM TIỆN ÍCH ----------
+function daysLeft(dateStr){
+  const now = new Date(); now.setHours(0,0,0,0);
+  const d = new Date(dateStr);
+  return Math.round((d-now)/86400000);
+}
+function statusOf(task){
+  const dl = daysLeft(task.han);
+  if(task.tienDo>=100) return {tag:'tag-ok', text:'Hoàn thành'};
+  if(dl<0) return {tag:'tag-danger', text:`Trễ ${Math.abs(dl)} ngày`};
+  if(dl<=3) return {tag:'tag-warn', text:`Còn ${dl} ngày`};
+  return {tag:'tag-ok', text:'Đúng tiến độ'};
+}
+function avgKpi(){
+  if(tasks.length===0) return 0;
+  const sum = tasks.reduce((a,t)=>a+t.tienDo,0);
+  return Math.round(sum/tasks.length);
+}
+function closeModal(id){ document.getElementById(id).classList.remove('show'); }
+
+// ---------- 6) RENDER: TỔNG QUAN ----------
+function renderTongQuan(){
+  document.getElementById('stNhanSu').textContent = staff.length;
+  document.getElementById('stCongViec').textContent = tasks.filter(t=>t.tienDo<100).length;
+  const tre = tasks.filter(t=>daysLeft(t.han)<0 && t.tienDo<100).length;
+  document.getElementById('stCongViecDelta').innerHTML = tre>0 ? `<span style="color:var(--danger)">${tre} việc trễ hạn</span>` : 'Không có việc trễ';
+  document.getElementById('stKpi').textContent = avgKpi()+'%';
+  document.getElementById('stKpiDelta').textContent = avgKpi()>=70 ? 'Đạt chỉ tiêu chung' : 'Cần theo sát';
+  document.getElementById('stCanhBao').textContent = tre + staff.filter(s=>s.hoso!=='Đầy đủ').length;
+
+  const rows = tasks
+    .filter(t=>t.tienDo<100)
+    .sort((a,b)=>daysLeft(a.han)-daysLeft(b.han))
+    .slice(0,5)
+    .map(t=>{
+      const s = statusOf(t);
+      return `<tr><td>${t.ten}</td><td>${t.phutrach}</td><td>${fmtDate(t.han)}</td><td><span class="tag ${s.tag}">${s.text}</span></td></tr>`;
+    }).join('');
+  document.getElementById('tblTongQuanViec').innerHTML = rows || '<tr><td colspan="4" class="empty">Không có việc nào</td></tr>';
+  refreshConsole();
+}
+function fmtDate(s){ const d=new Date(s); return d.toLocaleDateString('vi-VN'); }
+
+// ---------- 7) RENDER: NHÂN SỰ ----------
+function renderNhanSu(){
+  const q = (document.getElementById('nsSearch')?.value||'').toLowerCase();
+  const rows = staff.filter(s=> s.ten.toLowerCase().includes(q) || s.chucvu.toLowerCase().includes(q))
+    .map(s=>`<tr>
+      <td><strong>${s.ten}</strong></td>
+      <td>${s.chucvu}</td>
+      <td>${s.chamCong}</td>
+      <td>${s.phep} ngày</td>
+      <td>${s.hoso==='Đầy đủ' ? '<span class="tag tag-ok">Đầy đủ</span>' : `<span class="tag tag-warn">${s.hoso}</span>`}</td>
+      <td><button class="btn btn-outline btn-sm" onclick="removeStaff(${s.id})">Xoá</button></td>
+    </tr>`).join('');
+  document.getElementById('tblNhanSu').innerHTML = rows || '<tr><td colspan="6" class="empty">Chưa có cán bộ nào</td></tr>';
+}
+function openNhanSuModal(){ document.getElementById('fNsTen').value=''; document.getElementById('fNsChucVu').value=''; document.getElementById('modalNhanSu').classList.add('show'); }
+function saveNhanSu(){
+  const ten = document.getElementById('fNsTen').value.trim();
+  const chucvu = document.getElementById('fNsChucVu').value.trim();
+  if(!ten||!chucvu) return alert('Nhập đủ họ tên và chức vụ.');
+  staff.push({id:Date.now(), ten, chucvu, chamCong:"—", phep:0, hoso:"Đầy đủ"});
+  persist('staff', staff);
+  closeModal('modalNhanSu'); renderNhanSu(); renderTongQuan();
+}
+function removeStaff(id){ staff = staff.filter(s=>s.id!==id); persist('staff', staff); renderNhanSu(); renderTongQuan(); }
+
+// ---------- 8) RENDER: CÔNG VIỆC ----------
+function renderCongViec(){
+  const filter = document.getElementById('cvFilter')?.value || 'all';
+  let list = [...tasks];
+  if(filter==='dung') list = list.filter(t=>{const s=statusOf(t); return s.text==='Đúng tiến độ' || s.text==='Hoàn thành';});
+  if(filter==='sap') list = list.filter(t=>{const dl=daysLeft(t.han); return dl>=0 && dl<=3 && t.tienDo<100;});
+  if(filter==='tre') list = list.filter(t=>daysLeft(t.han)<0 && t.tienDo<100);
+
+  const rows = list.map(t=>{
+    const s = statusOf(t);
+    const barClass = s.tag==='tag-danger'?'danger':(s.tag==='tag-warn'?'warn':'');
+    return `<tr>
+      <td>${t.ten}</td>
+      <td>${t.phutrach}</td>
+      <td>${fmtDate(t.han)}</td>
+      <td><div class="bar-bg"><div class="bar-fill ${barClass}" style="width:${t.tienDo}%"></div></div></td>
+      <td><span class="tag ${s.tag}">${s.text}</span></td>
+    </tr>`;
+  }).join('');
+  document.getElementById('tblCongViec').innerHTML = rows || '<tr><td colspan="5" class="empty">Không có việc phù hợp bộ lọc</td></tr>';
+}
+function openCongViecModal(){
+  document.getElementById('fCvTen').value='';
+  document.getElementById('fCvPhuTrach').value='';
+  document.getElementById('fCvHan').value='';
+  document.getElementById('modalCongViec').classList.add('show');
+}
+function saveCongViec(){
+  const ten = document.getElementById('fCvTen').value.trim();
+  const phutrach = document.getElementById('fCvPhuTrach').value.trim();
+  const han = document.getElementById('fCvHan').value;
+  if(!ten||!phutrach||!han) return alert('Nhập đủ thông tin công việc.');
+  tasks.push({id:Date.now(), ten, phutrach, han, tienDo:0});
+  persist('tasks', tasks);
+  closeModal('modalCongViec'); renderCongViec(); renderTongQuan(); renderKpi();
+}
+
+// ---------- 9) RENDER: KPI ----------
+function renderKpi(){
+  const byPerson = {};
+  tasks.forEach(t=>{
+    if(!byPerson[t.phutrach]) byPerson[t.phutrach] = {giao:0, dat:0};
+    byPerson[t.phutrach].giao++;
+    if(t.tienDo>=100 || (daysLeft(t.han)>=0)) byPerson[t.phutrach].dat++;
+  });
+  const rows = Object.entries(byPerson).map(([ten, v])=>{
+    const tile = Math.round((v.dat/v.giao)*100);
+    let xep = 'Tốt', tag = 'tag-ok';
+    if(tile<50){xep='Cần cải thiện'; tag='tag-danger';}
+    else if(tile<80){xep='Khá'; tag='tag-warn';}
+    return `<tr><td>${ten}</td><td>${v.giao}</td><td>${v.dat}</td><td>${tile}%</td><td><span class="tag ${tag}">${xep}</span></td></tr>`;
+  }).join('');
+  document.getElementById('tblKpi').innerHTML = rows || '<tr><td colspan="5" class="empty">Chưa có dữ liệu KPI</td></tr>';
+}
+
+// ---------- 10) RENDER: PHÂN TÍCH ----------
+function renderPhanTich(){
+  const rows = phanTichRecords.map(r=>`<tr><td>${r.ky}</td><td>${r.danso}</td><td>${r.hoso}</td></tr>`).join('');
+  document.getElementById('tblPhanTich').innerHTML = rows || '<tr><td colspan="3" class="empty">Chưa có số liệu</td></tr>';
+}
+function savePhanTichRecord(){
+  const ky = document.getElementById('ptKy').value.trim();
+  const danso = document.getElementById('ptDanSo').value.trim();
+  const hoso = document.getElementById('ptHoSo').value.trim();
+  const ghichu = document.getElementById('ptGhiChu').value.trim();
+  if(!ky||!danso||!hoso) return alert('Nhập đủ kỳ, dân số, hồ sơ.');
+  phanTichRecords.push({ky, danso, hoso, ghichu});
+  persist('phantich', phanTichRecords);
+  document.getElementById('ptKy').value=''; document.getElementById('ptDanSo').value='';
+  document.getElementById('ptHoSo').value=''; document.getElementById('ptGhiChu').value='';
+  renderPhanTich();
+}
+
+// ---------- 11) FIRESTORE: lưu / tải ----------
+function persist(key, data){
+  if(!firestoreReady) return;
+  db.collection('binhmy_agent').doc(key).set({data: JSON.stringify(data), updated: Date.now()})
+    .catch(e=>console.warn('Lưu Firestore lỗi:', e));
+}
+async function loadAll(){
+  document.getElementById('fsStatus').className = 'tag ' + (firestoreReady ? 'tag-ok' : 'tag-warn');
+  document.getElementById('fsStatus').textContent = firestoreReady ? 'Đã kết nối' : 'Chưa cấu hình — đang dùng dữ liệu mẫu cục bộ';
+  if(!firestoreReady){ renderTongQuan(); return; }
+  try{
+    const keys = ['staff','tasks','phantich'];
+    for(const k of keys){
+      const doc = await db.collection('binhmy_agent').doc(k).get();
+      if(doc.exists){
+        const parsed = JSON.parse(doc.data().data);
+        if(k==='staff') staff = parsed;
+        if(k==='tasks') tasks = parsed;
+        if(k==='phantich') phanTichRecords = parsed;
+      }
+    }
+  }catch(e){ console.warn('Tải Firestore lỗi:', e); }
+  renderTongQuan();
+}
+
+// ---------- 12) GỌI AI QUA /api/gemini ----------
+async function callAgentAI(prompt){
+  try{
+    const res = await fetch('/api/gemini', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({prompt})
+    });
+    if(!res.ok) throw new Error('API lỗi '+res.status);
+    const data = await res.json();
+    return data.text || '(Không có nội dung trả về)';
+  }catch(e){
+    return null;
+  }
+}
+
+// ---------- 13) CHẠY AGENT (4 nhóm) ----------
+const agentDefs = {
+  nhansu: {
+    logId:'logNhanSu', outId:'outNhanSu', metaId:'agentNhanSuMeta',
+    buildPrompt: ()=>{
+      const thieuHoso = staff.filter(s=>s.hoso!=='Đầy đủ');
+      const nghiNhieu = staff.filter(s=>s.phep>=2);
+      return `Bạn là chuyên viên tổng hợp nhân sự UBND xã. Dựa trên dữ liệu sau, viết một đoạn nhận xét ngắn gọn (5-7 câu) và 1 bản nhắc nhở/đề xuất theo đúng văn phong hành chính nhà nước Việt Nam:
+- Cán bộ thiếu hồ sơ: ${thieuHoso.map(s=>s.ten+' ('+s.hoso+')').join(', ')||'không có'}
+- Cán bộ nghỉ phép nhiều (>=2 ngày trong tháng): ${nghiNhieu.map(s=>s.ten).join(', ')||'không có'}
+Tổng số cán bộ đang quản lý: ${staff.length}.`;
+    }
+  },
+  congviec: {
+    logId:'logCongViec', outId:'outCongViec', metaId:'agentCongViecMeta',
+    buildPrompt: ()=>{
+      const tre = tasks.filter(t=>daysLeft(t.han)<0 && t.tienDo<100);
+      const sap = tasks.filter(t=>{const d=daysLeft(t.han); return d>=0 && d<=3 && t.tienDo<100;});
+      return `Bạn là chuyên viên tổng hợp văn phòng UBND xã. Viết báo cáo tổng hợp tiến độ công việc tuần này theo đúng thể thức công văn hành chính (có mở đầu "Kính gửi:..." và kết luận đề xuất), dựa trên dữ liệu:
+- Tổng số việc đang theo dõi: ${tasks.length}
+- Việc trễ hạn: ${tre.map(t=>t.ten+' - phụ trách '+t.phutrach).join('; ')||'không có'}
+- Việc sắp đến hạn (trong 3 ngày tới): ${sap.map(t=>t.ten+' - phụ trách '+t.phutrach).join('; ')||'không có'}`;
+    }
+  },
+  kpi: {
+    logId:'logKpi', outId:'outKpi', metaId:'agentKpiMeta',
+    buildPrompt: ()=>{
+      renderKpi();
+      const trungBinh = avgKpi();
+      return `Bạn là chuyên viên đánh giá thi đua UBND xã. Dựa trên tỉ lệ hoàn thành công việc trung bình toàn xã là ${trungBinh}%, và danh sách công việc: ${tasks.map(t=>t.ten+' ('+t.tienDo+'% - phụ trách '+t.phutrach+')').join('; ')}.
+Viết nhận xét đánh giá KPI ngắn gọn (5-7 câu), chỉ rõ cá nhân/bộ phận cần được biểu dương và cá nhân/bộ phận cần được nhắc nhở, theo văn phong đánh giá thi đua hành chính nhà nước.`;
+    }
+  },
+  phantich: {
+    logId:'logPhanTich', outId:'outPhanTich', metaId:'agentPhanTichMeta',
+    buildPrompt: ()=>{
+      if(phanTichRecords.length===0) return null;
+      const data = phanTichRecords.map(r=>`Kỳ ${r.ky}: dân số ${r.danso}, hồ sơ tiếp nhận ${r.hoso}. Ghi chú: ${r.ghichu||'không có'}`).join('\n');
+      return `Bạn là chuyên viên phân tích - dự báo kinh tế xã hội cấp xã. Dựa trên dữ liệu các kỳ sau:
+${data}
+Hãy phân tích xu hướng biến động (dân số, khối lượng hồ sơ hành chính), nêu nguyên nhân khả dĩ (đặc biệt lưu ý bối cảnh sáp nhập đơn vị hành chính nếu có), và đưa ra 2-3 khuyến nghị cụ thể cho lãnh đạo xã để chuẩn bị nguồn lực kỳ tới.`;
+    }
+  }
+};
+
+async function runAgent(key){
+  const def = agentDefs[key];
+  const logEl = document.getElementById(def.logId);
+  const outEl = document.getElementById(def.outId);
+  const metaEl = document.getElementById(def.metaId);
+
+  const prompt = def.buildPrompt();
+  if(prompt===null){
+    logEl.innerHTML += `<div class="l-warn">› Chưa đủ dữ liệu để phân tích — hãy lưu ít nhất 1 kỳ số liệu trước.</div>`;
+    return;
+  }
+
+  logEl.innerHTML += `<div class="l-info">› [${new Date().toLocaleTimeString('vi-VN')}] Bắt đầu thu thập dữ liệu...</div>`;
+  logEl.scrollTop = logEl.scrollHeight;
+  await sleep(400);
+  logEl.innerHTML += `<div class="l-info">› Đang gửi yêu cầu phân tích tới Gemini API...</div>`;
+  logEl.scrollTop = logEl.scrollHeight;
+
+  const result = await callAgentAI(prompt);
+
+  if(result){
+    logEl.innerHTML += `<div class="l-ok">› Hoàn tất. Đã tạo báo cáo.</div>`;
+    outEl.style.display = 'block';
+    outEl.textContent = result;
+  }else{
+    logEl.innerHTML += `<div class="l-warn">› Chưa kết nối được API AI (/api/gemini). Hiển thị bản nháp cục bộ thay thế.</div>`;
+    outEl.style.display = 'block';
+    outEl.textContent = fallbackDraft(key, prompt);
+  }
+  logEl.scrollTop = logEl.scrollHeight;
+  agentRunLog[key] = new Date();
+  metaEl.textContent = 'chạy lần cuối: ' + agentRunLog[key].toLocaleTimeString('vi-VN');
+  refreshConsole();
+}
+
+function fallbackDraft(key, prompt){
+  // Bản nháp đơn giản khi chưa cấu hình API — để Thầy vẫn thấy luồng hoạt động đầy đủ.
+  return "— BẢN NHÁP CỤC BỘ (chưa nối API AI thật) —\n\n" + prompt.split('\n').slice(0,3).join('\n') +
+    "\n\n[Khi cấu hình xong GEMINI_API_KEY trên Vercel, agent sẽ tự viết báo cáo hoàn chỉnh tại đây.]";
+}
+
+async function runAllAgents(){
+  const log = document.getElementById('tqAgentLog');
+  log.innerHTML += `<div class="l-info">› Đang chạy tuần tự 4 agent...</div>`;
+  for(const key of ['nhansu','congviec','kpi','phantich']){
+    await runAgent(key);
+  }
+  log.innerHTML += `<div class="l-ok">› Hoàn tất chạy toàn bộ Agent lúc ${new Date().toLocaleTimeString('vi-VN')}</div>`;
+  log.scrollTop = log.scrollHeight;
+  renderTongQuan();
+}
+function sleep(ms){ return new Promise(r=>setTimeout(r,ms)); }
+
+// ---------- 14) KIỂM TRA TRẠNG THÁI API ----------
+async function checkApiStatus(){
+  const el = document.getElementById('apiStatus');
+  try{
+    const res = await fetch('/api/gemini', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({prompt:'ping'})});
+    if(res.ok){ el.className='tag tag-ok'; el.textContent='Đã kết nối'; }
+    else { el.className='tag tag-warn'; el.textContent='Chưa phản hồi hợp lệ (kiểm tra GEMINI_API_KEY trên Vercel)'; }
+  }catch(e){
+    el.className='tag tag-warn'; el.textContent='Chưa triển khai /api/gemini (đang chạy chế độ nháp cục bộ)';
+  }
+}
+
+// ---------- 15) KHỞI CHẠY ----------
+loadAll();
+checkApiStatus();
+renderNhanSu(); renderCongViec(); renderKpi(); renderPhanTich();
+</script>
+</body>
+</html>
